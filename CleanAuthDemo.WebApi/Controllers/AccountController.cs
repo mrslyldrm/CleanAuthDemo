@@ -1,4 +1,4 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+﻿using CleanAuthDemo.Application.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,21 +8,22 @@ namespace CleanAuthDemo.WebApi.Controllers;
 [Route("api/account")]
 public sealed class AccountController : ControllerBase
 {
+    private readonly ICurrentUser _currentUser;
+
+    public AccountController(ICurrentUser currentUser)
+    {
+        _currentUser = currentUser;
+    }
+
     [Authorize]
     [HttpGet("me")]
     public IActionResult Me()
     {
-        var userId = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-
-        var email = User.FindFirst(JwtRegisteredClaimNames.Email)?.Value;
-
-        var permissions = User.FindAll("permission").Select(x => x.Value).ToArray();
-
         return Ok(new
         {
-            UserId = userId,
-            Email = email,
-            Permissions = permissions
+            _currentUser.UserId,
+            _currentUser.Email,
+            _currentUser.Permissions
         });
     }
 }

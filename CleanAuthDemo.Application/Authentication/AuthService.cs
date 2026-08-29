@@ -5,12 +5,14 @@ public sealed class AuthService : IAuthService
     private readonly IIdentityService _identityService;
     private readonly IAccessTokenGenerator _accessTokenGenerator;
     private readonly IRefreshTokenService _refreshTokenService;
+    private readonly ICurrentUser _currentUser;
 
-    public AuthService(IIdentityService identityService, IAccessTokenGenerator accessTokenGenerator, IRefreshTokenService refreshTokenService)
+    public AuthService(IIdentityService identityService, IAccessTokenGenerator accessTokenGenerator, IRefreshTokenService refreshTokenService, ICurrentUser currentUser)
     {
         _identityService = identityService;
         _accessTokenGenerator = accessTokenGenerator;
         _refreshTokenService = refreshTokenService;
+        _currentUser = currentUser;
     }
 
     public Task<Guid> RegisterAsync(string email, string password, CancellationToken cancellationToken = default)
@@ -63,5 +65,19 @@ public sealed class AuthService : IAuthService
     public Task LogoutAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
         return _refreshTokenService.RevokeSessionAsync(refreshToken, cancellationToken);
+    }
+
+    public async Task LogoutAllAsync(
+    CancellationToken cancellationToken = default)
+    {
+        if (_currentUser.UserId is not Guid userId)
+        {
+            throw new InvalidOperationException(
+                "Authenticated user could not be resolved.");
+        }
+
+        await _refreshTokenService.RevokeAllAsync(
+            userId,
+            cancellationToken);
     }
 }

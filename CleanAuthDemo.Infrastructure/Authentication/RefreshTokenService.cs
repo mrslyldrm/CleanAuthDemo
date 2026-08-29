@@ -154,4 +154,12 @@ public sealed class RefreshTokenService : IRefreshTokenService
         var now = DateTime.UtcNow;
         await RevokeFamilyAsync(currentToken.FamilyId, now, "Session revoked by user.", cancellationToken);
     }
+
+    public async Task RevokeAllAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var now = DateTime.UtcNow;
+
+        await _dbContext.RefreshTokens.Where(x => x.UserId == userId && x.RevokedAtUtc == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(t => t.RevokedAtUtc, now).SetProperty(t => t.RevocationReason, "User logged out from all sessions."), cancellationToken);
+    }
 }

@@ -65,4 +65,13 @@ public sealed class AuthController : ControllerBase
 
         return NoContent();
     }
+
+    [AllowAnonymous]
+    [HttpPost("logout-all")]
+    public async Task<IActionResult> LogoutAll(CancellationToken cancellationToken)
+    {
+        await _authService.LogoutAllAsync(cancellationToken);
+
+        return NoContent();
+    }
 }

@@ -12,7 +12,7 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddPermissionAuthorization();
-
+builder.Services.AddCurrentUser();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi(options =>
 {
