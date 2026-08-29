@@ -35,4 +35,40 @@ public sealed class AuthService : IAuthService
 
         return new AuthTokenResult(accessToken.AccessToken, accessToken.ExpiresAtUtc, refreshToken.RefreshToken, refreshToken.ExpiresAtUtc);
     }
+    public async Task<AuthTokenResult?> RefreshAsync(
+    string refreshToken,
+    CancellationToken cancellationToken = default)
+    {
+        var rotation =
+            await _refreshTokenService.RotateAsync(
+                refreshToken,
+                cancellationToken);
+
+        if (rotation.Status != RefreshTokenRotationStatus.Success ||
+            rotation.UserId is null ||
+            rotation.RefreshToken is null ||
+            rotation.ExpiresAtUtc is null)
+        {
+            return null;
+        }
+
+        var user =
+            await _identityService.GetUserAsync(
+                rotation.UserId.Value,
+                cancellationToken);
+
+        if (user is null)
+        {
+            return null;
+        }
+
+        var accessToken =
+            _accessTokenGenerator.Generate(user);
+
+        return new AuthTokenResult(
+            accessToken.AccessToken,
+            accessToken.ExpiresAtUtc,
+            rotation.RefreshToken,
+            rotation.ExpiresAtUtc.Value);
+    }
 }

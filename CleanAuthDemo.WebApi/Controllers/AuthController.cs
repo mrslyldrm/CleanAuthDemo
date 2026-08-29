@@ -42,4 +42,18 @@ public sealed class AuthController : ControllerBase
 
         return Ok(result);
     }
+
+    [AllowAnonymous]
+    [HttpPost("refresh")]
+    public async Task<IActionResult> Refresh(RefreshTokenRequest request, CancellationToken cancellationToken)
+    {
+        var result = await _authService.RefreshAsync(request.RefreshToken, cancellationToken);
+
+        if (result is null)
+        {
+            return Unauthorized();
+        }
+
+        return Ok(result);
+    }
 }
