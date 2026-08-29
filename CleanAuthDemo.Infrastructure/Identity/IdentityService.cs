@@ -18,7 +18,7 @@ public sealed class IdentityService : IIdentityService
         _roleManager = roleManager;
     }
 
-    public async Task<Guid> CreateUserAsync(string email,string password,CancellationToken cancellationToken = default)
+    public async Task<Guid> CreateUserAsync(string email, string password, CancellationToken cancellationToken = default)
     {
         var user = new ApplicationUser
         {
@@ -55,7 +55,23 @@ public sealed class IdentityService : IIdentityService
         return user.Id;
     }
 
-    public async Task<AuthenticatedUser?> ValidateCredentialsAsync(string email,string password,CancellationToken cancellationToken = default)
+    public async Task<AuthenticatedUser?> GetUserAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+
+        if (user is null)
+        {
+            return null;
+        }
+
+        var roles = await _userManager.GetRolesAsync(user);
+
+        var permissions = await GetEffectivePermissionsAsync(user, roles);
+
+        return new AuthenticatedUser(user.Id, user.Email!, roles.ToArray(), permissions);
+    }
+
+    public async Task<AuthenticatedUser?> ValidateCredentialsAsync(string email, string password, CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByEmailAsync(email);
 
@@ -80,7 +96,7 @@ public sealed class IdentityService : IIdentityService
 
     private async Task<IReadOnlyCollection<string>> GetEffectivePermissionsAsync(ApplicationUser user, IList<string> roles)
     {
-        var permissions =new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var permissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         // Kullanıcıya doğrudan verilmiş permission'lar
         var userClaims = await _userManager.GetClaimsAsync(user);

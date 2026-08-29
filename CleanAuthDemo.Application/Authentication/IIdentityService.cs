@@ -8,5 +8,6 @@ namespace CleanAuthDemo.Application.Authentication
     {
         Task<Guid> CreateUserAsync(string email, string password, CancellationToken cancellationToken = default);
         Task<AuthenticatedUser?> ValidateCredentialsAsync(string email, string password, CancellationToken cancellationToken = default);
+        Task<AuthenticatedUser?> GetUserAsync(Guid userId, CancellationToken cancellationToken = default);
     }
 }
