@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="CleanAuthDemo.Application/CleanAuthDemo.Application.csproj" />
+  <Project Path="CleanAuthDemo.Domain/CleanAuthDemo.Domain.csproj" />
+  <Project Path="CleanAuthDemo.Infrastructure/CleanAuthDemo.Infrastructure.csproj" />
+  <Project Path="CleanAuthDemo.WebApi/CleanAuthDemo.WebApi.csproj" />
+</Solution>

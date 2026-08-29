@@ -1,0 +1,38 @@
+﻿namespace CleanAuthDemo.Application.Authentication;
+
+public sealed class AuthService : IAuthService
+{
+    private readonly IIdentityService _identityService;
+    private readonly IAccessTokenGenerator _accessTokenGenerator;
+    private readonly IRefreshTokenService _refreshTokenService;
+
+    public AuthService(IIdentityService identityService, IAccessTokenGenerator accessTokenGenerator, IRefreshTokenService refreshTokenService)
+    {
+        _identityService = identityService;
+        _accessTokenGenerator = accessTokenGenerator;
+        _refreshTokenService = refreshTokenService;
+    }
+
+    public Task<Guid> RegisterAsync(string email, string password, CancellationToken cancellationToken = default)
+    {
+        return _identityService.CreateUserAsync(
+            email,
+            password,
+            cancellationToken);
+    }
+
+    public async Task<AuthTokenResult?> LoginAsync(string email, string password, CancellationToken cancellationToken = default)
+    {
+        var user = await _identityService.ValidateCredentialsAsync(email, password, cancellationToken);
+
+        if (user is null)
+        {
+            return null;
+        }
+
+        var accessToken = _accessTokenGenerator.Generate(user);
+        var refreshToken = await _refreshTokenService.CreateAsync(user.Id, cancellationToken);
+
+        return new AuthTokenResult(accessToken.AccessToken, accessToken.ExpiresAtUtc, refreshToken.RefreshToken, refreshToken.ExpiresAtUtc);
+    }
+}
