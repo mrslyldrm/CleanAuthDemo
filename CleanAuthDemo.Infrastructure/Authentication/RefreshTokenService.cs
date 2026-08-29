@@ -60,70 +60,56 @@ public sealed class RefreshTokenService : IRefreshTokenService
 
         return Convert.ToHexString(hash);
     }
-    public async Task<RefreshTokenRotationResult> RotateAsync(
-    string refreshToken,
-    CancellationToken cancellationToken = default)
+    public async Task<RefreshTokenRotationResult> RotateAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(refreshToken))
         {
-            return new RefreshTokenRotationResult(
-                RefreshTokenRotationStatus.Invalid);
+            return new RefreshTokenRotationResult(RefreshTokenRotationStatus.Invalid);
         }
 
         var tokenHash = HashToken(refreshToken);
 
-        var currentToken =
-            await _dbContext.RefreshTokens
-                .SingleOrDefaultAsync(
-                    x => x.TokenHash == tokenHash,
-                    cancellationToken);
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+
+        var currentToken = await _dbContext.RefreshTokens.FromSqlInterpolated($"""
+            SELECT * FROM "RefreshTokens" WHERE "TokenHash" = {tokenHash} 
+            FOR UPDATE
+            """)
+            .SingleOrDefaultAsync(cancellationToken);
 
         if (currentToken is null)
         {
-            return new RefreshTokenRotationResult(
-                RefreshTokenRotationStatus.Invalid);
+            await transaction.RollbackAsync(cancellationToken);
+            return new RefreshTokenRotationResult(RefreshTokenRotationStatus.Invalid);
         }
 
         var now = DateTime.UtcNow;
 
         if (currentToken.RevokedAtUtc is not null)
         {
-            await RevokeFamilyAsync(
-                currentToken.FamilyId,
-                now,
-                "Refresh token reuse detected.",
-                cancellationToken);
-
-            return new RefreshTokenRotationResult(
-                RefreshTokenRotationStatus.Reused);
+            await RevokeFamilyAsync(currentToken.FamilyId, now, "Refresh token reuse detected.", cancellationToken);
+            await transaction.RollbackAsync(cancellationToken);
+            return new RefreshTokenRotationResult(RefreshTokenRotationStatus.Reused);
         }
 
         if (currentToken.ExpiresAtUtc <= now)
         {
-            return new RefreshTokenRotationResult(
-                RefreshTokenRotationStatus.Expired);
+            await transaction.RollbackAsync(cancellationToken);
+            return new RefreshTokenRotationResult(RefreshTokenRotationStatus.Expired);
         }
 
         var newRawToken = GenerateToken();
         var newTokenHash = HashToken(newRawToken);
 
-        var newExpiresAtUtc =
-            now.AddDays(_options.ExpirationDays);
+        var newExpiresAtUtc = now.AddDays(_options.ExpirationDays);
 
         var newToken = new RefreshTokenEntity
         {
             Id = Guid.NewGuid(),
-
             UserId = currentToken.UserId,
-
-            // Yeni family üretmiyoruz.
-            // Aynı session zinciri devam ediyor.
             FamilyId = currentToken.FamilyId,
-
             TokenHash = newTokenHash,
-
             CreatedAtUtc = now,
-
             ExpiresAtUtc = newExpiresAtUtc
         };
 
@@ -133,14 +119,9 @@ public sealed class RefreshTokenService : IRefreshTokenService
 
         _dbContext.RefreshTokens.Add(newToken);
 
-        await _dbContext.SaveChangesAsync(
-            cancellationToken);
-
-        return new RefreshTokenRotationResult(
-            RefreshTokenRotationStatus.Success,
-            currentToken.UserId,
-            newRawToken,
-            newExpiresAtUtc);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new RefreshTokenRotationResult(RefreshTokenRotationStatus.Success, currentToken.UserId, newRawToken, newExpiresAtUtc);
     }
     private async Task RevokeFamilyAsync(Guid familyId, DateTime revokedAtUtc, string reason, CancellationToken cancellationToken)
     {
@@ -155,7 +136,22 @@ public sealed class RefreshTokenService : IRefreshTokenService
             token.RevocationReason = reason;
         }
 
-        await _dbContext.SaveChangesAsync(
-            cancellationToken);
+        await _dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RevokeSessionAsync(string refreshToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken))
+        {
+            return;
+        }
+        var tokenHash = HashToken(refreshToken);
+        var currentToken = await _dbContext.RefreshTokens.SingleOrDefaultAsync(x => x.TokenHash == tokenHash, cancellationToken);
+        if (currentToken is null || currentToken.RevokedAtUtc is not null)
+        {
+            return;
+        }
+        var now = DateTime.UtcNow;
+        await RevokeFamilyAsync(currentToken.FamilyId, now, "Session revoked by user.", cancellationToken);
     }
 }
